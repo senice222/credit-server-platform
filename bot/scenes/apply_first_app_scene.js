@@ -24,7 +24,6 @@ const uploadDirectory = path.join(__dirname, '../../api/uploads');
 if (!fs.existsSync(uploadDirectory)) {
     fs.mkdirSync(uploadDirectory, {recursive: true});
 }
-const fileInfoPath = path.join(__dirname, '../../utils/Предоставление_информации_по_требованию.doc');
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -108,7 +107,7 @@ const ApplyApplication = new Scenes.WizardScene(
         ctx.wizard.state.data.allDocuments = [];
         ctx.wizard.state.data.cart60file = [];
         ctx.wizard.state.data.previousDocuments = [];
-
+        ctx.wizard.state.currentStep = '';
         const msg = await ctx.reply(
             `<b>⚙️ Введите полное название компании:</b> \n\n<i>Пример: ООО "Компания"</i>`,
             {
@@ -527,6 +526,7 @@ const ApplyApplication = new Scenes.WizardScene(
                 ctx.wizard.state.waitingForDate = true;
             } else if (callbackData === '?allDocuments_done') {
                 await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                ctx.wizard.state.currentStep = 'cart60file';
             }
         } else if (ctx.message.document || ctx.message.photo) {
             try {
@@ -658,11 +658,10 @@ const ApplyApplication = new Scenes.WizardScene(
 
                 ctx.scene.leave();
             }
-            
-
-
+        
             if (callbackData === '?allDocuments_done') {
                 await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                ctx.wizard.state.currentStep = 'cart60file';
             }
             if (callbackData === '?cart60file_done') {
                 const msg = await ctx.reply(`<b>6/7 Были ли ранее случаи выставления требований к данной организации?</b>`, {
@@ -673,10 +672,12 @@ const ApplyApplication = new Scenes.WizardScene(
                 ctx.wizard.next();
             }
         } else if (ctx.message.document || ctx.message.photo) {
-            if (ctx.wizard.state.data.allDocuments.length === 0) {
-                await handleFileUpload(ctx, 'allDocuments');
-            } else {
+            if (ctx.wizard.state.currentStep === 'cart60file') {
+                console.log("cart60file")
                 await handleFileUpload(ctx, 'cart60file');
+            } else {
+                console.log("allDocuments")
+                await handleFileUpload(ctx, 'allDocuments');
             }
         } else if (ctx.message.text) {
             const msg = await ctx.reply('На этом этапе нельзя отправить текст. Пожалуйста, отправьте файл.');

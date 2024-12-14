@@ -12,6 +12,7 @@ import { sendMail } from "../../utils/sendMail.js";
 import axios from 'axios'
 import { extractFileName } from '../callbacks/applications/detailedApplication.js';
 import dotenv from 'dotenv'
+import ApplicationSchema from "../../models/Application.model.js";
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,7 +23,6 @@ const uploadDirectory = path.join(__dirname, '../../api/uploads');
 if (!fs.existsSync(uploadDirectory)) {
     fs.mkdirSync(uploadDirectory, { recursive: true });
 }
-const fileInfoPath = path.join(__dirname, '../../utils/Предоставление_информации_по_требованию.doc');
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -35,6 +35,62 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage });
+
+const handleFileUpload = async (ctx, fileType) => {
+    try {
+        const file = ctx.message.document || ctx.message.photo[ctx.message.photo.length - 1];
+        const fileId = file.file_id;
+        const fileInfo = await ctx.telegram.getFile(fileId);
+        const filePath = fileInfo.file_path;
+
+        const uniqueSuffix = uuidv4();
+        const fileName = `${uniqueSuffix}@${path.basename(filePath)}`;
+        const localFilePath = path.join(uploadDirectory, fileName);
+        const fileStream = fs.createWriteStream(localFilePath);
+        const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
+
+        const downloadStream = await axios({
+            url: fileUrl,
+            method: 'GET',
+            responseType: 'stream'
+        });
+
+        downloadStream.data.pipe(fileStream);
+
+        const publicFileUrl = `${process.env.URL}/api/uploads/${fileName}`;
+        ctx.wizard.state.data[fileType].push(publicFileUrl);
+        
+        if (ctx.wizard.state.data[fileType].length === 1 && fileType !== 'allDocuments') {
+            const msg = await ctx.reply(
+                `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку "Готово" ниже.`,
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text: 'Готово', callback_data: `?${fileType}_done`}]
+                        ],
+                    },
+                    parse_mode: 'HTML',
+                }
+            );
+            ctx.wizard.state.deleteMessages.push(msg.message_id);
+        }
+    } catch (err) {
+        console.error('Error during file download:', err);
+        await ctx.reply('Произошла ошибка при сохранении файла. Попробуйте снова.');
+    }
+};
+
+const moveToNextStep = async (ctx, stepNumber, message, keyboard = cancelKeyboard) => {
+    const msg = await ctx.reply(
+        `<b>${stepNumber}/7 ${message}</b>`,
+        {
+            reply_markup: keyboard.reply_markup,
+            parse_mode: "HTML"
+        }
+    );
+    ctx.wizard.state.deleteMessages.push(msg.message_id);
+    ctx.wizard.next();
+};
 
 const ApplyExistingApplication = new Scenes.WizardScene(
     'apply_existing_application',
@@ -50,7 +106,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
         ctx.wizard.state.data.cart60file = [];
         ctx.wizard.state.data.previousDocuments = [];
         ctx.wizard.state.applicationId = ctx.scene.state.applicationId;
-
+        ctx.wizard.state.currentStep = '';
         const msg = await ctx.reply(`<b>⚙️ 1/7 Отправьте файл договора(ов)</b> (включая все дополнительные соглашения и приложения).\n\n Договор необходимо отправить в формате Word \n\n <i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
             reply_markup: cancelKeyboard.reply_markup,
             parse_mode: "HTML"
@@ -328,6 +384,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 ctx.wizard.state.waitingForDate = true;
             } else if (callbackData === '?allDocuments_done') {
                 await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                ctx.wizard.state.currentStep = 'cart60file';
             }
         } else if (ctx.message.document || ctx.message.photo) {
             try {
@@ -463,6 +520,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
 
             if (callbackData === '?allDocuments_done') {
                 await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                ctx.wizard.state.currentStep = 'cart60file';
             }
             if (callbackData === '?cart60file_done') {
                 const msg = await ctx.reply(`<b>6/7 Были ли ранее случаи выставления требований к данной организации?</b>`, {
@@ -473,7 +531,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 ctx.wizard.next();
             }
         } else if (ctx.message.document || ctx.message.photo) {
-            if (ctx.wizard.state.data.allDocuments.length === 0) {
+            if (ctx.wizard.state.currentStep !== 'cart60file' && ctx.wizard.state.data.cart60file.length >= 0) {
                 await handleFileUpload(ctx, 'allDocuments');
             } else {
                 await handleFileUpload(ctx, 'cart60file');
@@ -632,7 +690,6 @@ const ApplyExistingApplication = new Scenes.WizardScene(
 
                 const publicFileUrl = `${process.env.URL}/api/uploads/${fileName}`;
                 ctx.wizard.state.data.cart60file.push(publicFileUrl);
-                console.log(ctx.wizard.state.data.cart60file)
                 if (ctx.wizard.state.data.cart60file.length === 1) {
                     const msg = await ctx.reply(
                         `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку "Готово" ниже.`,
