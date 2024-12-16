@@ -1,13 +1,14 @@
 import AdminModel from "../models/Admin.model.js";
-import bcrypt, {genSalt, hash} from "bcrypt";
+import bcrypt, { genSalt, hash } from "bcrypt";
 import jwt from "jsonwebtoken";
-
+import { generateTransferKeyFunction } from "../utils/generateTransferKey.js";
+import { validateAndDeleteTransferKeyFunction } from "../utils/validateAndDeleteTransferKey.js";
 export const getAdmins = async (req, res) => {
     try {
         const access2 = req.super
 
         if (!access2) {
-        return res.status(403).json({message: "Недостаточно прав доступа"})
+            return res.status(403).json({ message: "Недостаточно прав доступа" })
         }
         const admins = await AdminModel.find()
 
@@ -21,18 +22,18 @@ export const getAdmins = async (req, res) => {
 }
 
 export const createAdmin = async (req, res) => {
-    const {login, access, comment, password, superAdmin} = req.body
+    const { login, access, comment, password, superAdmin } = req.body
     const access2 = req.super
 
     if (!access2) {
-        return res.status(403).json({message: "Недостаточно прав доступа"})
+        return res.status(403).json({ message: "Недостаточно прав доступа" })
     }
-    
+
     try {
-        const mbAdmin = await AdminModel.findOne({login})
+        const mbAdmin = await AdminModel.findOne({ login })
 
         if (mbAdmin) {
-            return res.status(500).json({message: "Такой логин уже зарегистрирован"})
+            return res.status(500).json({ message: "Такой логин уже зарегистрирован" })
         }
         const doc = new AdminModel({
             login,
@@ -52,12 +53,12 @@ export const createAdmin = async (req, res) => {
                 expiresIn: '15d'
             }
         )
-        
+
         const admins = await AdminModel.find()
 
         return res.json(admins)
     } catch (e) {
-        res.status(500).json({message: 'Ошибка создания админа'})
+        res.status(500).json({ message: 'Ошибка создания админа' })
         console.log(e)
     }
 }
@@ -65,9 +66,9 @@ export const createAdmin = async (req, res) => {
 
 
 export const login = async (req, res) => {
-    const {login, password} = req.body
+    const { login, password } = req.body
     try {
-        const admin = await AdminModel.findOne({login,})
+        const admin = await AdminModel.findOne({ login, })
 
         if (!admin) {
             return res.status(404).json({
@@ -92,7 +93,7 @@ export const login = async (req, res) => {
             }
         )
 
-        res.status(200).json({token, admin})
+        res.status(200).json({ token, admin })
 
 
     } catch (e) {
@@ -111,21 +112,26 @@ export const getMe = async (req, res) => {
         })
     }
 
-    const {passwordHash, ...userData} = user._doc
+    const { passwordHash, ...userData } = user._doc
 
     res.json(userData)
 }
+export const getUserById = async (req, res) => {
+    const { id } = req.params
+    const user = await AdminModel.findById(id)
+    res.json(user)
+}
 export const deleteAdmin = async (req, res) => {
-    const {id} = req.params
+    const { id } = req.params
     const access2 = req.super
 
     if (!access2) {
-        return res.status(403).json({message: "Недостаточно прав доступа"})
+        return res.status(403).json({ message: "Недостаточно прав доступа" })
     }
     const admin = await AdminModel.findById(id)
 
     if (admin.superAdmin) {
-        return res.status(403).json({message: "Вы не можете удалить супер-админа"})
+        return res.status(403).json({ message: "Вы не можете удалить супер-админа" })
     }
     const user = await AdminModel.findByIdAndDelete(id)
     if (!user) {
@@ -139,12 +145,12 @@ export const deleteAdmin = async (req, res) => {
     return res.json(admins)
 }
 export const changeAdmin = async (req, res) => {
-    const {id} = req.params
-    const {access, fio, comment, password, superAdmin} = req.body
+    const { id } = req.params
+    const { access, fio, comment, password, superAdmin } = req.body
     const access2 = req.super
 
     if (!access2) {
-        return res.status(403).json({message: "Недостаточно прав доступа"})
+        return res.status(403).json({ message: "Недостаточно прав доступа" })
     }
     const user = await AdminModel.findById(id)
     if (!user) {
@@ -162,8 +168,8 @@ export const changeAdmin = async (req, res) => {
     return res.json(admins)
 }
 export const changeUserPassword = async (req, res) => {
-    const {oldPassword, newPassword} = req.body
-    const {userId} = req
+    const { oldPassword, newPassword } = req.body
+    const { userId } = req
 
     try {
         const user = await AdminModel.findById(userId)
@@ -173,7 +179,7 @@ export const changeUserPassword = async (req, res) => {
                 message: 'Пользователь не найден'
             })
         }
-        console.log(oldPassword, user.passwordHash )
+        console.log(oldPassword, user.passwordHash)
         const isValidPass = await bcrypt.compare(oldPassword, user.passwordHash)
 
         if (!isValidPass) {
@@ -189,7 +195,7 @@ export const changeUserPassword = async (req, res) => {
 
         await user.save()
 
-        res.json({success : true})
+        res.json({ success: true })
     } catch (e) {
         console.log(e)
         res.status(500).json({
@@ -197,3 +203,32 @@ export const changeUserPassword = async (req, res) => {
         });
     }
 }
+export const generateTransferKey = async (req, res) => {
+    const { adminId } = req.body;
+
+    if (!adminId) {
+        return res.status(400).json({ error: 'Admin ID is required' });
+    }
+
+    try {
+        const transferKey = await generateTransferKeyFunction(adminId);
+        res.json({ transferKey });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+export const validateTransferKey = async (req, res) => {
+    const { transferKey } = req.body;
+
+    if (!transferKey) {
+        return res.status(400).json({ error: 'Transfer key is required' });
+    }
+
+    try {
+        const admin = await validateAndDeleteTransferKeyFunction(transferKey);
+        res.json({ message: 'Transfer key validated', admin });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+}
+

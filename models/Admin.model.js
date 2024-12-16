@@ -19,8 +19,11 @@ const AdminSchema = new mongoose.Schema(
         superAdmin: {
             type: Boolean,
             default: false
+        },
+        transferKey: {
+            type: String,
+            default: null
         }
-
     }
 );
 
