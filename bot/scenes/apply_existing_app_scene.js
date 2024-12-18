@@ -98,6 +98,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
         ctx.wizard.state.deleteMessages = [];
         ctx.wizard.state.data = {};
         ctx.wizard.state.data.fileAct = [];
+        ctx.wizard.state.data.isFormalDeal = false;
         ctx.wizard.state.data.fileExplain = [];
         ctx.wizard.state.data.additionalInformation = [];
         ctx.wizard.state.data.actSverki = [];
@@ -107,7 +108,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
         ctx.wizard.state.data.previousDocuments = [];
         ctx.wizard.state.applicationId = ctx.scene.state.applicationId;
         ctx.wizard.state.currentStep = '';
-        const msg = await ctx.reply(`<b>⚙️ 1/7 Отправьте файл договора(ов)</b> (включая все дополнительные соглашения и приложения).\n\n Договор необходимо отправить в формате Word \n\n <i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
+        const msg = await ctx.reply(`<b>⚙️ 1/6 Отправьте файл договора(ов)</b> (включая все дополнительные соглашения и приложения).\n\n Договор необходимо отправить в формате Word \n\n <i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
             reply_markup: cancelKeyboard.reply_markup,
             parse_mode: "HTML"
         });
@@ -119,7 +120,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
         if (ctx.updateType === 'callback_query') {
             const callbackData = ctx.update.callback_query.data;
             if (callbackData === '?done_act') {
-                const msg = await ctx.reply(`<b>2/7 Формальная (реальная) сделка?</b>`, {
+                const msg = await ctx.reply(`<b>2/6 Отправьте акт сверки. Если акта сверки нет, нажмите кнопку “Пропустить”.</b>`, {
                     reply_markup: formalDeal.reply_markup,
                     parse_mode: "HTML"
                 })
@@ -156,7 +157,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                         validFiles.forEach((file) => {
                             const fileName = extractFileName(file);
                             const encodedFile = encodeURIComponent(file); // Кодируем файл для корректного URL
-                            messageText += `\n<b>${fileName}</b>: <a href="https://orders.consultantnlgpanel.ru/api/uploads/${encodedFile}">Скачать</a>\n`;
+                            messageText += `\n<b>${fileName}</b>: <a href="${process.env.URL}/api/uploads/${encodedFile}">Скачать</a>\n`;                            
                         });
                     }
 
@@ -182,37 +183,49 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 await ctx.reply('Вы отменили действие.');
                 ctx.scene.leave();
             }
-        } else if (ctx.message.document || ctx.message.photo) {
+        } else if (ctx.message.document) {
             try {
-                const file = ctx.message.document || ctx.message.photo[ctx.message.photo.length - 1];
+                const file = ctx.message.document
                 const fileId = file.file_id;
+        
+                if (ctx.message.document) {
+                    const fileName = file.file_name || ''; // Получаем имя файла
+                    const wordFileRegex = /\.(doc|docx)$/i; // Регулярное выражение для Word файлов
+        
+                    // Проверка расширения
+                    if (!wordFileRegex.test(fileName)) {
+                        const msg = await ctx.reply('Пожалуйста, отправьте файл Word.');
+                        ctx.wizard.state.deleteMessages.push(msg.message_id);
+                    }
+                }
+        
                 const fileInfo = await ctx.telegram.getFile(fileId);
                 const filePath = fileInfo.file_path;
-
+        
                 const uniqueSuffix = uuidv4();
-                const fileName = `${uniqueSuffix}@${path.basename(filePath)}`;
-                const localFilePath = path.join(uploadDirectory, fileName);
+                const savedFileName = `${uniqueSuffix}@${path.basename(filePath)}`;
+                const localFilePath = path.join(uploadDirectory, savedFileName);
                 const fileStream = fs.createWriteStream(localFilePath);
                 const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
-
+        
                 const downloadStream = await axios({
                     url: fileUrl,
                     method: 'GET',
                     responseType: 'stream'
                 });
-
+        
                 downloadStream.data.pipe(fileStream);
-
-                const publicFileUrl = `${process.env.URL}/api/uploads/${fileName}`;
+        
+                const publicFileUrl = `${process.env.URL}/api/uploads/${savedFileName}`;
                 ctx.wizard.state.data.fileAct.push(publicFileUrl);
-
+        
                 if (ctx.wizard.state.data.fileAct.length === 1) {
                     const msg = await ctx.reply(
-                        `Продолжайе отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
+                        `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
                         {
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{text: 'Готово', callback_data: '?done_act'}]
+                                    [{ text: 'Готово', callback_data: '?done_act' }]
                                 ],
                             },
                             parse_mode: 'HTML',
@@ -229,144 +242,144 @@ const ApplyExistingApplication = new Scenes.WizardScene(
             ctx.wizard.state.deleteMessages.push(msg.message_id);
         } else {
             await ctx.reply('Пожалуйста, отправьте файл.');
-        }
+        }   
     },
-    async ctx => {
-        if (ctx.updateType === 'callback_query') {
-            const callbackData = ctx.update.callback_query.data;
-            if (callbackData === '?done_act') {
-                await moveToNextStep(ctx, 4, 'Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.');
-            }
-            if (callbackData === '?yes_formal') {
-                ctx.wizard.state.isFormalDeal = true
-                const msg = await ctx.reply(`<b>3/7 Отправьте акт сверки. Если акта сверки нет, нажмите кнопку “Пропустить”.</b>`, {
-                    reply_markup: skip.reply_markup,
-                    parse_mode: "HTML"
-                })
+    // async ctx => {
+    //     if (ctx.updateType === 'callback_query') {
+    //         const callbackData = ctx.update.callback_query.data;
+    //         if (callbackData === '?done_act') {
+    //             await moveToNextStep(ctx, 4, 'Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.');
+    //         }
+    //         if (callbackData === '?yes_formal') {
+    //             ctx.wizard.state.isFormalDeal = true
+    //             const msg = await ctx.reply(`<b>3/7 Отправьте акт сверки. Если акта сверки нет, нажмите кнопку “Пропустить”.</b>`, {
+    //                 reply_markup: skip.reply_markup,
+    //                 parse_mode: "HTML"
+    //             })
 
-                ctx.wizard.state.deleteMessages.push(msg.message_id);
-                ctx.wizard.next();
-            }
-            if (callbackData === '?no_formal') {
-                ctx.wizard.state.isFormalDeal = false
-                const msg = await ctx.reply(`<b>3/7 Отправьте акт сверки. Если акта сверки нет, нажмите кнопку “Пропустить”.</b>`, {
-                    reply_markup: skip.reply_markup,
-                    parse_mode: "HTML"
-                })
+    //             ctx.wizard.state.deleteMessages.push(msg.message_id);
+    //             ctx.wizard.next();
+    //         }
+    //         if (callbackData === '?no_formal') {
+    //             ctx.wizard.state.isFormalDeal = false
+    //             const msg = await ctx.reply(`<b>3/7 Отправьте акт сверки. Если акта сверки нет, нажмите кнопку “Пропустить”.</b>`, {
+    //                 reply_markup: skip.reply_markup,
+    //                 parse_mode: "HTML"
+    //             })
 
-                ctx.wizard.state.deleteMessages.push(msg.message_id);
-                ctx.wizard.next();
-            } else if (callbackData.startsWith('?detailedApp_')) {
-                // Действие для кнопки с ?detailedApp_
-                ctx.wizard.state.deleteMessages.forEach(item => ctx.deleteMessage(item))
-                ctx.scene.leave()
-                const applicationId = callbackData.split('_')[1]; // Получаем ID заявки из callback_data
-                try {
-                    const application = await ApplicationModel.findById(applicationId);
-                    if (!application) {
-                        await ctx.reply('Заявка не найдена.');
-                        return;
-                    }
+    //             ctx.wizard.state.deleteMessages.push(msg.message_id);
+    //             ctx.wizard.next();
+    //         } else if (callbackData.startsWith('?detailedApp_')) {
+    //             // Действие для кнопки с ?detailedApp_
+    //             ctx.wizard.state.deleteMessages.forEach(item => ctx.deleteMessage(item))
+    //             ctx.scene.leave()
+    //             const applicationId = callbackData.split('_')[1]; // Получаем ID заявки из callback_data
+    //             try {
+    //                 const application = await ApplicationModel.findById(applicationId);
+    //                 if (!application) {
+    //                     await ctx.reply('Заявка не найдена.');
+    //                     return;
+    //                 }
 
-                    // Формируем текст заявки
-                    let messageText = `<b>Заявка №${application.normalId}</b>\n<b>Статус: </b>${application.status}`;
-                    if (application.dateAnswer) {
-                        messageText += `\nБудет рассмотрена до: ${application.dateAnswer}`;
-                    }
-                    if (application.status === "На уточнении") {
-                        messageText += "\n–––––\n<i>Проверьте сообщение об уточнениях в этом чате выше и отправьте их.</i>\n–––––";
-                    }
+    //                 // Формируем текст заявки
+    //                 let messageText = `<b>Заявка №${application.normalId}</b>\n<b>Статус: </b>${application.status}`;
+    //                 if (application.dateAnswer) {
+    //                     messageText += `\nБудет рассмотрена до: ${application.dateAnswer}`;
+    //                 }
+    //                 if (application.status === "На уточнении") {
+    //                     messageText += "\n–––––\n<i>Проверьте сообщение об уточнениях в этом чате выше и отправьте их.</i>\n–––––";
+    //                 }
 
-                    const validFiles = application.fileAnswer.filter(file => file.trim() !== '');
-                    if (application.comments) {
-                        messageText += `\n---\n<b>Ответ по заявке:</b>\n<b>Комментарии:</b> ${application.comments || 'Нет комментариев'}`;
-                    }
+    //                 const validFiles = application.fileAnswer.filter(file => file.trim() !== '');
+    //                 if (application.comments) {
+    //                     messageText += `\n---\n<b>Ответ по заявке:</b>\n<b>Комментарии:</b> ${application.comments || 'Нет комментариев'}`;
+    //                 }
 
-                    if (validFiles.length > 0) {
-                        validFiles.forEach((file) => {
-                            const fileName = extractFileName(file);
-                            const encodedFile = encodeURIComponent(file); // Кодируем файл для корректного URL
-                            messageText += `\n<b>${fileName}</b>: <a href="https://orders.consultantnlgpanel.ru/api/uploads/${encodedFile}">Скачать</a>\n`;
-                        });
-                    }
+    //                 if (validFiles.length > 0) {
+    //                     validFiles.forEach((file) => {
+    //                         const fileName = extractFileName(file);
+    //                         const encodedFile = encodeURIComponent(file); // Кодируем файл для корректного URL
+    //                         messageText += `\n<b>${fileName}</b>: <a href="${process.env.URL}/api/uploads/${encodedFile}">Скачать</a>\n`;
+    //                     });
+    //                 }
 
-                    messageText += `\n----\nПри возникновении вопросов по заявке обращайтесь на почту adm01@uk-fp.ru. В теме письма укажите “Вопрос по заявке №${application.normalId}”.`;
+    //                 messageText += `\n----\nПри возникновении вопросов по заявке обращайтесь на почту adm01@uk-fp.ru. В теме письма укажите “Вопрос по заявке №${application.normalId}”.`;
 
-                    await ctx.editMessageText(
-                        messageText,
-                        {
-                            reply_markup: Markup.inlineKeyboard([
-                                [Markup.button.callback('Вернуться назад', `?myApplications`)]
-                            ]).resize().reply_markup,
-                            parse_mode: 'HTML'
-                        }
-                    );
+    //                 await ctx.editMessageText(
+    //                     messageText,
+    //                     {
+    //                         reply_markup: Markup.inlineKeyboard([
+    //                             [Markup.button.callback('Вернуться назад', `?myApplications`)]
+    //                         ]).resize().reply_markup,
+    //                         parse_mode: 'HTML'
+    //                     }
+    //                 );
 
-                } catch (error) {
-                    console.error('Error in detailedApplication:', error);
-                    await ctx.reply('Произошла ошибка при загрузке заявки. Пожалуйста, попробуйте снова.');
-                }
+    //             } catch (error) {
+    //                 console.error('Error in detailedApplication:', error);
+    //                 await ctx.reply('Произошла ошибка при загрузке заявки. Пожалуйста, попробуйте снова.');
+    //             }
 
-            } else if (callbackData === '?cancelScene') {
-                // Действие для отмены сцены
-                await ctx.reply('Вы отменили действие.');
-                ctx.scene.leave();
-            }
-        } else if (ctx.message.document || ctx.message.photo) {
-            try {
-                const file = ctx.message.document || ctx.message.photo[ctx.message.photo.length - 1];
-                const fileId = file.file_id;
-                const fileInfo = await ctx.telegram.getFile(fileId);
-                const filePath = fileInfo.file_path;
+    //         } else if (callbackData === '?cancelScene') {
+    //             // Действие для отмены сцены
+    //             await ctx.reply('Вы отменили действие.');
+    //             ctx.scene.leave();
+    //         }
+    //     } else if (ctx.message.document || ctx.message.photo) {
+    //         try {
+    //             const file = ctx.message.document || ctx.message.photo[ctx.message.photo.length - 1];
+    //             const fileId = file.file_id;
+    //             const fileInfo = await ctx.telegram.getFile(fileId);
+    //             const filePath = fileInfo.file_path;
 
-                const uniqueSuffix = uuidv4();
-                const fileName = `${uniqueSuffix}@${path.basename(filePath)}`;
-                const localFilePath = path.join(uploadDirectory, fileName);
-                const fileStream = fs.createWriteStream(localFilePath);
-                const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
+    //             const uniqueSuffix = uuidv4();
+    //             const fileName = `${uniqueSuffix}@${path.basename(filePath)}`;
+    //             const localFilePath = path.join(uploadDirectory, fileName);
+    //             const fileStream = fs.createWriteStream(localFilePath);
+    //             const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
 
-                const downloadStream = await axios({
-                    url: fileUrl,
-                    method: 'GET',
-                    responseType: 'stream'
-                });
+    //             const downloadStream = await axios({
+    //                 url: fileUrl,
+    //                 method: 'GET',
+    //                 responseType: 'stream'
+    //             });
 
-                downloadStream.data.pipe(fileStream);
+    //             downloadStream.data.pipe(fileStream);
 
-                const publicFileUrl = `${process.env.URL}/api/uploads/${fileName}`;
-                ctx.wizard.state.data.fileAct.push(publicFileUrl);
+    //             const publicFileUrl = `${process.env.URL}/api/uploads/${fileName}`;
+    //             ctx.wizard.state.data.fileAct.push(publicFileUrl);
 
-                if (ctx.wizard.state.data.fileAct.length === 1) {
-                    const msg = await ctx.reply(
-                        `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{text: 'Готово', callback_data: '?done_act'}]
-                                ],
-                            },
-                            parse_mode: 'HTML',
-                        }
-                    );
-                    ctx.wizard.state.deleteMessages.push(msg.message_id);
-                }
-            } catch (err) {
-                console.error('Error during file download:', err);
-                await ctx.reply('Произошла ошибка при сохранении фала. Попробуйте снова.');
-            }
-        } else if (ctx.message.text) {
-            const msg = await ctx.reply('На этом этапе нельзя отправить текст. Пожалуйста, отправьте файл.');
-            ctx.wizard.state.deleteMessages.push(msg.message_id);
-        } else {
-            await ctx.reply('Пожалуйста, отправьте файл.');
-        }
-    },
+    //             if (ctx.wizard.state.data.fileAct.length === 1) {
+    //                 const msg = await ctx.reply(
+    //                     `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
+    //                     {
+    //                         reply_markup: {
+    //                             inline_keyboard: [
+    //                                 [{text: 'Готово', callback_data: '?done_act'}]
+    //                             ],
+    //                         },
+    //                         parse_mode: 'HTML',
+    //                     }
+    //                 );
+    //                 ctx.wizard.state.deleteMessages.push(msg.message_id);
+    //             }
+    //         } catch (err) {
+    //             console.error('Error during file download:', err);
+    //             await ctx.reply('Произошла ошибка при сохранении фала. Попробуйте снова.');
+    //         }
+    //     } else if (ctx.message.text) {
+    //         const msg = await ctx.reply('На этом этапе нельзя отправить текст. Пожалуйста, отправьте файл.');
+    //         ctx.wizard.state.deleteMessages.push(msg.message_id);
+    //     } else {
+    //         await ctx.reply('Пожалуйста, отправьте файл.');
+    //     }
+    // },
     async ctx => {
         if (ctx.updateType === 'callback_query') {
             const callbackData = ctx.update.callback_query.data;
             if (callbackData === '?skip') {
                 ctx.wizard.state.actSverki = [];
-                const msg = await ctx.reply(`<b>4/7 Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.</b>`, {
+                const msg = await ctx.reply(`<b>3/6 Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.</b>`, {
                     reply_markup: {
                         inline_keyboard: [
                             [{text: 'Готово', callback_data: '?allDocuments_done'}]
@@ -383,7 +396,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 ctx.wizard.state.deleteMessages.push(msg.message_id);
                 ctx.wizard.state.waitingForDate = true;
             } else if (callbackData === '?allDocuments_done') {
-                await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                await moveToNextStep(ctx, 4, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
                 ctx.wizard.state.currentStep = 'cart60file';
             }
         } else if (ctx.message.document || ctx.message.photo) {
@@ -438,7 +451,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
             if (ctx.wizard.state.waitingForDate) {
                 ctx.wizard.state.data.lastDateActSverki = ctx.message.text;
                 ctx.wizard.state.waitingForDate = false;
-                const msg = await ctx.reply(`<b>4/7 Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.</b>`, {
+                const msg = await ctx.reply(`<b>3/6 Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.</b>`, {
                     reply_markup: {
                         inline_keyboard: [
                             [{text: 'Готово', callback_data: '?allDocuments_done'}]
@@ -458,7 +471,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
         if (ctx.updateType === 'callback_query') {
             const callbackData = ctx.update.callback_query.data;
             if (callbackData === '?yes_chance') {
-                const msg = await ctx.reply(`<b>7/7 Отправьте файл предыдущих ответов или указанные документы, если таковые имеются \n\n или информацию которая была отправлена, касающиеся этого периода этой кредиторской задолженности.</b> \n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
+                const msg = await ctx.reply(`<b>6/6 Отправьте файл предыдущих ответов или указанные документы, если таковые имеются \n\n или информацию которая была отправлена, касающиеся этого периода этой кредиторской задолженности.</b> \n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
                     reply_markup: cancelKeyboard.reply_markup,
                     parse_mode: "HTML"
                 })
@@ -519,11 +532,11 @@ const ApplyExistingApplication = new Scenes.WizardScene(
 
 
             if (callbackData === '?allDocuments_done') {
-                await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                await moveToNextStep(ctx, 4, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
                 ctx.wizard.state.currentStep = 'cart60file';
             }
             if (callbackData === '?cart60file_done') {
-                const msg = await ctx.reply(`<b>6/7 Были ли ранее случаи выставления требований к данной организации?</b>`, {
+                const msg = await ctx.reply(`<b>5/6 Были ли ранее случаи выставления требований к данной организации?</b>`, {
                     reply_markup: anyChanceRequirements.reply_markup,
                     parse_mode: "HTML"
                 });
@@ -546,7 +559,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
         if (ctx.updateType === 'callback_query') {
             const callbackData = ctx.update.callback_query.data;
             if (callbackData === '?yes_chance') {
-                const msg = await ctx.reply(`<b>7/7 Отправьте файл предыдущих ответов или указанные документы, если таковые имеются \n\n или информацию которая была отправлена, касающиеся этого периода этой кредиторской задолженности.</b> \n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
+                const msg = await ctx.reply(`<b>6/6 Отправьте файл предыдущих ответов или указанные документы, если таковые имеются \n\n или информацию которая была отправлена, касающиеся этого периода этой кредиторской задолженности.</b> \n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
                     reply_markup: cancelKeyboard.reply_markup,
                     parse_mode: "HTML"
                 })
@@ -604,7 +617,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 ctx.scene.leave();
             }
             if (callbackData === '?allDocuments60_done') {
-                const msg = await ctx.reply(`<b>6/7 Были ли ранее случаи выставления требований к данной организации?</b>`, {
+                const msg = await ctx.reply(`<b>5/6 Были ли ранее случаи выставления требований к данной организации?</b>`, {
                     reply_markup: anyChanceRequirements.reply_markup,
                     parse_mode: "HTML"
                 });
@@ -641,7 +654,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                         validFiles.forEach((file) => {
                             const fileName = extractFileName(file);
                             const encodedFile = encodeURIComponent(file); // Кодируем файл для корректного URL
-                            messageText += `\n<b>${fileName}</b>: <a href="https://orders.consultantnlgpanel.ru/api/uploads/${encodedFile}">Скачать</a>\n`;
+                            messageText += `\n<b>${fileName}</b>: <a href="${process.env.URL}/api/uploads/${encodedFile}">Скачать</a>\n`;
                         });
                     }
 
@@ -717,7 +730,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
         if (ctx.updateType === 'callback_query') {
             const callbackData = ctx.update.callback_query.data;
             if (callbackData === '?yes_chance') {
-                const msg = await ctx.reply(`<b>7/7 Отправьте файл предыдущих ответов или указанные документы, если таковые имеются \n\n или информацию которая была отправлена, касающиеся этого периода этой кредиторской задолженности.</b> \n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
+                const msg = await ctx.reply(`<b>6/6 Отправьте файл предыдущих ответов или указанные документы, если таковые имеются \n\n или информацию которая была отправлена, касающиеся этого периода этой кредиторской задолженности.</b> \n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>`, {
                     reply_markup: cancelKeyboard.reply_markup,
                     parse_mode: "HTML"
                 })
@@ -854,7 +867,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                         validFiles.forEach((file) => {
                             const fileName = extractFileName(file);
                             const encodedFile = encodeURIComponent(file); // Кодируем файл для корректного URL
-                            messageText += `\n<b>${fileName}</b>: <a href="https://orders.consultantnlgpanel.ru/api/uploads/${encodedFile}">Скачать</a>\n`;
+                            messageText += `\n<b>${fileName}</b>: <a href="${process.env.URL}/api/uploads/${encodedFile}">Скачать</a>\n`;
                         });
                     }
 
@@ -1033,7 +1046,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                         validFiles.forEach((file) => {
                             const fileName = extractFileName(file);
                             const encodedFile = encodeURIComponent(file); // Кодируем файл для корректного URL
-                            messageText += `\n<b>${fileName}</b>: <a href="https://orders.consultantnlgpanel.ru/api/uploads/${encodedFile}">Скачать</a>\n`;
+                            messageText += `\n<b>${fileName}</b>: <a href="${process.env.URL}/api/uploads/${encodedFile}">Скачать</a>\n`;
                         });
                     }
 
