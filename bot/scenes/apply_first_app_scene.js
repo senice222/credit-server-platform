@@ -135,6 +135,7 @@ const ApplyApplication = new Scenes.WizardScene(
             ctx.wizard.next();
         } else if (ctx.update.callback_query.data.startsWith('?detailedApp_')) {
             // Действие для кнопки с ?detailedApp_
+            const callbackData = ctx.update.callback_query.data;
             ctx.wizard.state = {};
             const applicationId = callbackData.split('_')[1]; // Получаем ID заявки из callback_data
             try {
@@ -205,6 +206,7 @@ const ApplyApplication = new Scenes.WizardScene(
             ctx.wizard.next();
         } else if (ctx.update.callback_query.data.startsWith('?detailedApp_')) {
             // Действие для кнопки с ?detailedApp_
+            const callbackData = ctx.update.callback_query.data;
             ctx.wizard.state = {};
             const applicationId = callbackData.split('_')[1]; // Получаем ID заявки из callback_data
             try {
