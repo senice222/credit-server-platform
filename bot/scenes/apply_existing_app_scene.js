@@ -59,14 +59,14 @@ const handleFileUpload = async (ctx, fileType) => {
 
         const publicFileUrl = `${process.env.URL}/api/uploads/${fileName}`;
         ctx.wizard.state.data[fileType].push(publicFileUrl);
-        
+
         if (ctx.wizard.state.data[fileType].length === 1 && fileType !== 'allDocuments') {
             const msg = await ctx.reply(
                 `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку "Готово" ниже.`,
                 {
                     reply_markup: {
                         inline_keyboard: [
-                            [{text: 'Готово', callback_data: `?${fileType}_done`}]
+                            [{ text: 'Готово', callback_data: `?${fileType}_done` }]
                         ],
                     },
                     parse_mode: 'HTML',
@@ -157,7 +157,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                         validFiles.forEach((file) => {
                             const fileName = extractFileName(file);
                             const encodedFile = encodeURIComponent(file); // Кодируем файл для корректного URL
-                            messageText += `\n<b>${fileName}</b>: <a href="${process.env.URL}/api/uploads/${encodedFile}">Скачать</a>\n`;                            
+                            messageText += `\n<b>${fileName}</b>: <a href="${process.env.URL}/api/uploads/${encodedFile}">Скачать</a>\n`;
                         });
                     }
 
@@ -187,51 +187,51 @@ const ApplyExistingApplication = new Scenes.WizardScene(
             try {
                 const file = ctx.message.document
                 const fileId = file.file_id;
-        
+                const fileName = file.file_name || ''; // Получаем имя файла
+                const wordFileRegex = /\.(doc|docx)$/i; // Регулярное выражение для Word файлов
                 if (ctx.message.document) {
-                    const fileName = file.file_name || ''; // Получаем имя файла
-                    const wordFileRegex = /\.(doc|docx)$/i; // Регулярное выражение для Word файлов
-        
                     // Проверка расширения
                     if (!wordFileRegex.test(fileName)) {
                         const msg = await ctx.reply('Пожалуйста, отправьте файл Word.');
                         ctx.wizard.state.deleteMessages.push(msg.message_id);
                     }
                 }
-        
-                const fileInfo = await ctx.telegram.getFile(fileId);
-                const filePath = fileInfo.file_path;
-        
-                const uniqueSuffix = uuidv4();
-                const savedFileName = `${uniqueSuffix}@${path.basename(filePath)}`;
-                const localFilePath = path.join(uploadDirectory, savedFileName);
-                const fileStream = fs.createWriteStream(localFilePath);
-                const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
-        
-                const downloadStream = await axios({
-                    url: fileUrl,
-                    method: 'GET',
-                    responseType: 'stream'
-                });
-        
-                downloadStream.data.pipe(fileStream);
-        
-                const publicFileUrl = `${process.env.URL}/api/uploads/${savedFileName}`;
-                ctx.wizard.state.data.fileAct.push(publicFileUrl);
-        
-                if (ctx.wizard.state.data.fileAct.length === 1) {
-                    const msg = await ctx.reply(
-                        `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Готово', callback_data: '?done_act' }]
-                                ],
-                            },
-                            parse_mode: 'HTML',
-                        }
-                    );
+                if (wordFileRegex.test(fileName)) {
                     ctx.wizard.state.deleteMessages.push(msg.message_id);
+                    const fileInfo = await ctx.telegram.getFile(fileId);
+                    const filePath = fileInfo.file_path;
+
+                    const uniqueSuffix = uuidv4();
+                    const savedFileName = `${uniqueSuffix}@${path.basename(filePath)}`;
+                    const localFilePath = path.join(uploadDirectory, savedFileName);
+                    const fileStream = fs.createWriteStream(localFilePath);
+                    const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
+
+                    const downloadStream = await axios({
+                        url: fileUrl,
+                        method: 'GET',
+                        responseType: 'stream'
+                    });
+
+                    downloadStream.data.pipe(fileStream);
+
+                    const publicFileUrl = `${process.env.URL}/api/uploads/${savedFileName}`;
+                    ctx.wizard.state.data.fileAct.push(publicFileUrl);
+
+                    if (ctx.wizard.state.data.fileAct.length === 1) {
+                        const msg = await ctx.reply(
+                            `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
+                            {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'Готово', callback_data: '?done_act' }]
+                                    ],
+                                },
+                                parse_mode: 'HTML',
+                            }
+                        );
+                        ctx.wizard.state.deleteMessages.push(msg.message_id);
+                    }
                 }
             } catch (err) {
                 console.error('Error during file download:', err);
@@ -242,7 +242,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
             ctx.wizard.state.deleteMessages.push(msg.message_id);
         } else {
             await ctx.reply('Пожалуйста, отправьте файл.');
-        }   
+        }
     },
     // async ctx => {
     //     if (ctx.updateType === 'callback_query') {
@@ -382,7 +382,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 const msg = await ctx.reply(`<b>3/6 Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.</b>`, {
                     reply_markup: {
                         inline_keyboard: [
-                            [{text: 'Готово', callback_data: '?allDocuments_done'}]
+                            [{ text: 'Готово', callback_data: '?allDocuments_done' }]
                         ],
                     },
                     parse_mode: "HTML"
@@ -431,7 +431,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                             {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{text: 'Готово', callback_data: '?acts_sverki_done'}]
+                                        [{ text: 'Готово', callback_data: '?acts_sverki_done' }]
                                     ],
                                 },
                                 parse_mode: 'HTML',
@@ -441,7 +441,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                     }
                 } else {
                     ctx.wizard.state.data.allDocuments.push(publicFileUrl);
-                    
+
                 }
             } catch (err) {
                 console.error('Error during file download:', err);
@@ -454,7 +454,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 const msg = await ctx.reply(`<b>3/6 Отправьте любые документы из перечисленных: УПД, КС-2, КС-3, акты выполненных работ.</b>`, {
                     reply_markup: {
                         inline_keyboard: [
-                            [{text: 'Готово', callback_data: '?allDocuments_done'}]
+                            [{ text: 'Готово', callback_data: '?allDocuments_done' }]
                         ],
                     },
                     parse_mode: "HTML"
@@ -528,7 +528,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
 
                 ctx.scene.leave();
             }
-            
+
 
 
             if (callbackData === '?allDocuments_done') {
@@ -709,7 +709,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                         {
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{text: 'Готово', callback_data: '?allDocuments60_done'}]
+                                    [{ text: 'Готово', callback_data: '?allDocuments60_done' }]
                                 ],
                             },
                             parse_mode: 'HTML',
@@ -918,7 +918,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
 
                 if (ctx.wizard.state.data.cart60file.length === 0) {
                     ctx.wizard.state.data.cart60file.push(publicFileUrl);
-        
+
                     if (ctx.wizard.state.data.cart60file.length === 1) {
                         const msg = await ctx.reply(
                             `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку "Готово" ниже.`,
@@ -936,7 +936,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                 } else {
                     ctx.wizard.state.data.previousDocuments = ctx.wizard.state.data.previousDocuments || [];
                     ctx.wizard.state.data.previousDocuments.push(publicFileUrl);
-        
+
                     if (ctx.wizard.state.data.previousDocuments.length === 1) {
                         const msg = await ctx.reply(
                             `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку "Готово" ниже.`,
@@ -1102,7 +1102,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
                         {
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{text: 'Готово', callback_data: '?previousDocuments_done'}]
+                                    [{ text: 'Готово', callback_data: '?previousDocuments_done' }]
                                 ],
                             },
                             parse_mode: 'HTML',

@@ -332,51 +332,51 @@ const ApplyApplication = new Scenes.WizardScene(
             try {
                 const file = ctx.message.document
                 const fileId = file.file_id;
-        
+                const fileName = file.file_name || ''; // Получаем имя файла
+                const wordFileRegex = /\.(doc|docx)$/i; // Регулярное выражение для Word файлов
                 if (ctx.message.document) {
-                    const fileName = file.file_name || ''; // Получаем имя файла
-                    const wordFileRegex = /\.(doc|docx)$/i; // Регулярное выражение для Word файлов
-        
                     // Проверка расширения
                     if (!wordFileRegex.test(fileName)) {
                         const msg = await ctx.reply('Пожалуйста, отправьте файл Word.');
                         ctx.wizard.state.deleteMessages.push(msg.message_id);
                     }
                 }
-        
-                const fileInfo = await ctx.telegram.getFile(fileId);
-                const filePath = fileInfo.file_path;
-        
-                const uniqueSuffix = uuidv4();
-                const savedFileName = `${uniqueSuffix}@${path.basename(filePath)}`;
-                const localFilePath = path.join(uploadDirectory, savedFileName);
-                const fileStream = fs.createWriteStream(localFilePath);
-                const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
-        
-                const downloadStream = await axios({
-                    url: fileUrl,
-                    method: 'GET',
-                    responseType: 'stream'
-                });
-        
-                downloadStream.data.pipe(fileStream);
-        
-                const publicFileUrl = `${process.env.URL}/api/uploads/${savedFileName}`;
-                ctx.wizard.state.data.fileAct.push(publicFileUrl);
-        
-                if (ctx.wizard.state.data.fileAct.length === 1) {
-                    const msg = await ctx.reply(
-                        `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Готово', callback_data: '?done_act' }]
-                                ],
-                            },
-                            parse_mode: 'HTML',
-                        }
-                    );
+                if (wordFileRegex.test(fileName)) {
                     ctx.wizard.state.deleteMessages.push(msg.message_id);
+                    const fileInfo = await ctx.telegram.getFile(fileId);
+                    const filePath = fileInfo.file_path;
+
+                    const uniqueSuffix = uuidv4();
+                    const savedFileName = `${uniqueSuffix}@${path.basename(filePath)}`;
+                    const localFilePath = path.join(uploadDirectory, savedFileName);
+                    const fileStream = fs.createWriteStream(localFilePath);
+                    const fileUrl = `https://api.telegram.org/file/bot${process.env.TOKEN}/${filePath}`;
+
+                    const downloadStream = await axios({
+                        url: fileUrl,
+                        method: 'GET',
+                        responseType: 'stream'
+                    });
+
+                    downloadStream.data.pipe(fileStream);
+
+                    const publicFileUrl = `${process.env.URL}/api/uploads/${savedFileName}`;
+                    ctx.wizard.state.data.fileAct.push(publicFileUrl);
+
+                    if (ctx.wizard.state.data.fileAct.length === 1) {
+                        const msg = await ctx.reply(
+                            `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
+                            {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'Готово', callback_data: '?done_act' }]
+                                    ],
+                                },
+                                parse_mode: 'HTML',
+                            }
+                        );
+                        ctx.wizard.state.deleteMessages.push(msg.message_id);
+                    }
                 }
             } catch (err) {
                 console.error('Error during file download:', err);
