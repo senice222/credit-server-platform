@@ -342,7 +342,6 @@ const ApplyApplication = new Scenes.WizardScene(
                     }
                 }
                 if (wordFileRegex.test(fileName)) {
-                    ctx.wizard.state.deleteMessages.push(msg.message_id);
                     const fileInfo = await ctx.telegram.getFile(fileId);
                     const filePath = fileInfo.file_path;
 
