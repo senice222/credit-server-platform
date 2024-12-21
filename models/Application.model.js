@@ -23,7 +23,7 @@ const ApplicationSchema = new mongoose.Schema(
         },
         status: {
             type: String, // ['Cоздана', 'Рассмотрена', 'Отклонена', 'На рассмотрении', 'В работе']
-            default: 'Cоздана'
+            default: 'Создана'
         },
         clarificationsAnswer: {
             type: [

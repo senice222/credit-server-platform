@@ -1097,7 +1097,7 @@ const ApplyExistingApplication = new Scenes.WizardScene(
 
                 if (ctx.wizard.state.data.previousDocuments.length === 1) {
                     const msg = await ctx.reply(
-                        `Продолжайе отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
+                        `Продолжайте отправлять файлы, если это необходимо. Как закончите, нажмите на кнопку “Готово” ниже.`,
                         {
                             reply_markup: {
                                 inline_keyboard: [
