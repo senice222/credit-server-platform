@@ -540,8 +540,15 @@ const ApplyApplication = new Scenes.WizardScene(
                 ctx.wizard.state.deleteMessages.push(msg.message_id);
                 ctx.wizard.state.waitingForDate = true;
             } else if (callbackData === '?allDocuments_done') {
-                await moveToNextStep(ctx, 4, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
-                ctx.wizard.state.currentStep = 'cart60file';
+                if (allDocuments.length > 0) {  
+                    await moveToNextStep(ctx, 4, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                    ctx.wizard.state.currentStep = 'cart60file';
+                } else {
+                    const msg = await ctx.reply(`Отправьте файл.`, {
+                        parse_mode: "HTML"
+                    });
+                    ctx.wizard.state.deleteMessages.push(msg.message_id);
+                }
             }
         } else if (ctx.message.document || ctx.message.photo) {
             try {
@@ -675,8 +682,15 @@ const ApplyApplication = new Scenes.WizardScene(
             }
         
             if (callbackData === '?allDocuments_done') {
-                await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
-                ctx.wizard.state.currentStep = 'cart60file';
+                if (allDocuments.length > 0) {  
+                    await moveToNextStep(ctx, 5, 'Отправьте карточку 60 счета (заинтересованного периода)\n\n<i>Пожалуйста, отправляйте по одному файлу за раз. Вы можете отправить несколько файлов.</i>');
+                    ctx.wizard.state.currentStep = 'cart60file';
+                } else {
+                    const msg = await ctx.reply(`Отправьте файл.`, {
+                        parse_mode: "HTML"
+                    });
+                    ctx.wizard.state.deleteMessages.push(msg.message_id);
+                }
             }
             if (callbackData === '?cart60file_done') {
                 const msg = await ctx.reply(`<b>5/6 Были ли ранее случаи выставления требований к данной организации?</b>`, {
