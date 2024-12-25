@@ -10,7 +10,7 @@ export function extractFileName(file) {
 }
 
 const detailedApplication = (bot) => {
-    const API_URL = process.env.API_URL;
+    const API_URL = process.env.URL;
 
     bot.action([/\?detailedApp_(.+)/], async (ctx) => {
         const applicationId = ctx.match[1];
