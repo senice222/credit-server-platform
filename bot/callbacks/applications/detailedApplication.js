@@ -1,5 +1,7 @@
 import { Markup } from 'telegraf'
 import ApplicationModel from '../../../models/Application.model.js'
+import dotenv from 'dotenv'
+dotenv.config();
 
 export function extractFileName(file) {
     const fileName = file.split('.')[0]; 
