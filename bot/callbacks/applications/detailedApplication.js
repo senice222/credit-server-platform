@@ -39,7 +39,7 @@ const detailedApplication = (bot) => {
                 buyerDocs.map((file, index) => {
                     const encodedFile = encodeURIComponent(file);
                     console.log(`${API_URL}/uploads/${encodedFile}`)
-                    messageText += `\n${index + 1}. <a href="${API_URL}/uploads/${encodedFile}">скачать</a>`;
+                    messageText += `\n${index + 1}. <a href="${API_URL}/api/uploads/${encodedFile}">скачать</a>`;
                 });
             }
             
@@ -47,7 +47,7 @@ const detailedApplication = (bot) => {
                 messageText += `\nДокументы для продавца:`;
                 sellerDocs.map((file, index) => {
                     const encodedFile = encodeURIComponent(file);
-                    messageText += `\n${index + 1}. <a href="${API_URL}/uploads/${encodedFile}">скачать</a>`;
+                    messageText += `\n${index + 1}. <a href="${API_URL}/api/uploads/${encodedFile}">скачать</a>`;
                 });
             }
 
